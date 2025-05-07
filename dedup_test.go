@@ -3,6 +3,7 @@ package dedup
 import (
 	"context"
 	"crypto/sha1"
+	"github.com/pixie-sh/logger-go/logger"
 	"hash"
 	"testing"
 	"time"
@@ -117,6 +118,22 @@ type MockLogger struct {
 	errors []string
 }
 
+func (m *MockLogger) Clone() logger.Interface {
+	return m
+}
+
+func (m *MockLogger) WithCtx(ctx context.Context) logger.Interface {
+	return m.With("ctx", ctx)
+}
+
+func (m *MockLogger) Warn(format string, args ...any) {
+	m.Log(format, args...)
+}
+
+func (m *MockLogger) Debug(format string, args ...any) {
+	m.Log(format, args...)
+}
+
 func NewMockLogger() *MockLogger {
 	return &MockLogger{
 		fields: make(map[string]interface{}),
@@ -125,7 +142,7 @@ func NewMockLogger() *MockLogger {
 	}
 }
 
-func (m *MockLogger) With(field string, value interface{}) LoggerInterface {
+func (m *MockLogger) With(field string, value interface{}) logger.Interface {
 	clone := &MockLogger{
 		fields: make(map[string]interface{}),
 		logs:   m.logs,
@@ -174,7 +191,7 @@ type TestEntity struct {
 }
 
 func TestDeduperComprehensive(t *testing.T) {
-	logger := NewMockLogger()
+	log := NewMockLogger()
 	ctx := context.Background()
 
 	// Create a hash handler for TestEntity
@@ -195,7 +212,7 @@ func TestDeduperComprehensive(t *testing.T) {
 			},
 		}
 
-		deduper := NewDeduper(hashHandler, mockStorage, logger, func() hash.Hash {return sha1.New()})
+		deduper := NewDeduper(hashHandler, mockStorage, logger.Logger, func() hash.Hash {return sha1.New()})
 		assert.NotNil(t, deduper)
 
 		// Test that the default prefix is applied correctly
@@ -228,7 +245,7 @@ func TestDeduperComprehensive(t *testing.T) {
 		}
 
 		customPrefix := "custom:dedup.TestEntity:"
-		deduper := NewDeduper(hashHandler, mockStorage, logger,  func() hash.Hash {return sha1.New()}, customPrefix)
+		deduper := NewDeduper(hashHandler, mockStorage, log,  func() hash.Hash {return sha1.New()}, customPrefix)
 		assert.NotNil(t, deduper)
 
 		entity := TestEntity{ID: "123", Name: "Test"}
@@ -259,7 +276,7 @@ func TestDeduperComprehensive(t *testing.T) {
 			},
 		}
 
-		deduper := NewDeduper(hashHandler, mockStorage, logger, func() hash.Hash {return sha1.New()})
+		deduper := NewDeduper(hashHandler, mockStorage, log, func() hash.Hash {return sha1.New()})
 		assert.NotNil(t, deduper)
 
 		_, err := deduper.Hash(ctx, nil)
@@ -280,7 +297,7 @@ func TestDeduperComprehensive(t *testing.T) {
 			},
 		}
 
-		deduper := NewDeduper(hashHandler, mockStorage, logger, func() hash.Hash {return sha1.New()})
+		deduper := NewDeduper(hashHandler, mockStorage, log, func() hash.Hash {return sha1.New()})
 		assert.NotNil(t, deduper)
 
 		_, err := deduper.Hash(ctx, "not a TestEntity")
@@ -302,7 +319,7 @@ func TestDeduperComprehensive(t *testing.T) {
 			},
 		}
 
-		deduper := NewDeduper(hashHandler, mockStorage, logger,  func() hash.Hash {return sha1.New()})
+		deduper := NewDeduper(hashHandler, mockStorage, log,  func() hash.Hash {return sha1.New()})
 		assert.NotNil(t, deduper)
 
 		entity := TestEntity{ID: "123", Name: "Test"}
@@ -348,7 +365,7 @@ func TestDeduperComprehensive(t *testing.T) {
 			},
 		}
 
-		deduper := NewDeduper(hashHandler, mockStorage, logger, func() hash.Hash {return sha1.New()})
+		deduper := NewDeduper(hashHandler, mockStorage, log, func() hash.Hash {return sha1.New()})
 		assert.NotNil(t, deduper)
 
 		entity := TestEntity{ID: "123", Name: "Test"}
@@ -370,7 +387,7 @@ func TestDeduperComprehensive(t *testing.T) {
 			},
 		}
 
-		deduper := NewDeduper(hashHandler, mockStorage, logger, func() hash.Hash {return sha1.New()})
+		deduper := NewDeduper(hashHandler, mockStorage, log, func() hash.Hash {return sha1.New()})
 		assert.NotNil(t, deduper)
 
 		// Test storage error

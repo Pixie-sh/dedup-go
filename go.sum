@@ -18,8 +18,8 @@ github.com/mitchellh/mapstructure v1.5.0 h1:jeMsZIYE/09sWLaz43PL7Gy6RuMjD2eJVyua
 github.com/mitchellh/mapstructure v1.5.0/go.mod h1:bFUtVrKA4DC2yAKiSyO/QUcy7e+RRV2QTWOzhPopBRo=
 github.com/pixie-sh/errors-go v0.3.4 h1:VE2ybklFR9RTENdR8m0z6cyW62vd7GzxBPur8S5v5hA=
 github.com/pixie-sh/errors-go v0.3.4/go.mod h1:Y1N/JjJyD6v0HOEJ7168wE68STOUYdROGYOSLMo2MHY=
-github.com/pixie-sh/logger-go v0.4.1 h1:u0V3aEumxLI/bzj4tG4isKnCdBN69Pq5wTE/g50lcOc=
-github.com/pixie-sh/logger-go v0.4.1/go.mod h1:F0f2FqyQAA8K6f+/mlkYC2fE6SjHOdvlPO/PY7J8Lrc=
+github.com/pixie-sh/logger-go v0.4.2 h1:8mAiODQqjKs+DMtn3P4K4zIeNzcVJH4EGgW4m9hX2WU=
+github.com/pixie-sh/logger-go v0.4.2/go.mod h1:F0f2FqyQAA8K6f+/mlkYC2fE6SjHOdvlPO/PY7J8Lrc=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/redis/go-redis/v9 v9.8.0 h1:q3nRvjrlge/6UD7eTu/DSg2uYiU2mCL0G/uzBWqhicI=

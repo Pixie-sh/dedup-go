@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"github.com/pixie-sh/logger-go/logger"
 	"hash"
 	"time"
 
@@ -20,19 +21,12 @@ type Storage interface {
 	TTL(ctx context.Context, key string) (time.Duration, error)
 }
 
-// LoggerInterface represents the basic logging interface.
-type LoggerInterface interface {
-	With(field string, value any) LoggerInterface
-	Log(format string, args ...any)
-	Error(format string, args ...any)
-}
-
 // Deduper provides deduplication functionality using SHA1 hashes
 type Deduper struct {
 	handler hashHandler
 	storage Storage
 	prefix  string
-	logger LoggerInterface
+	logger logger.Interface
 	hasher func() hash.Hash
 }
 
@@ -40,7 +34,7 @@ type Deduper struct {
 func NewDeduper[T any](
 	handler func(ctx context.Context, t T) ([]byte, error),
 	storage Storage,
-	logger LoggerInterface,
+	logger logger.Interface,
 	hasher func() hash.Hash,
 	customPrefix ...string,
 ) *Deduper {
