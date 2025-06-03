@@ -2,7 +2,8 @@ package dedup
 
 import (
 "context"
-"time"
+	"errors"
+	"time"
 
 "github.com/redis/go-redis/v9"
 )
@@ -10,6 +11,19 @@ import (
 // RedisStorage implements the Storage interface with Redis
 type RedisStorage struct {
 	client *redis.Client
+}
+
+func (r *RedisStorage) Get(ctx context.Context, key string) (any, error) {
+	val, err := r.client.Get(ctx, key).Result()
+	if errors.Is(err, redis.Nil) {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return val, nil
 }
 
 // NewRedisStorage creates a new RedisStorage instance
