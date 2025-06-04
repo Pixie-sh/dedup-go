@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/pixie-sh/logger-go/logger"
+	"go.worten.net/digital/packages/marketplace-libs/utils"
 	"hash"
 	"time"
 	"unsafe"
@@ -127,7 +128,7 @@ func (d *Deduper) IsValueDuplicate(ctx context.Context, entity any, storeIfNot .
 		return false, errors.Wrap(err, "storage error; %s", err.Error(), DedupStorageErrorCode)
 	}
 
-	if exists == nil && len(storeIfNot) > 0 {
+	if utils.IsEmpty(exists) && len(storeIfNot) > 0 {
 		_, _, err = d.store(ctx, dedupHash, entity, storeIfNot[0])
 		if err != nil {
 			d.logger.With("error", err).Error("failed to store dedupHash at IsDuplicate; %s", err.Error())
@@ -139,6 +140,14 @@ func (d *Deduper) IsValueDuplicate(ctx context.Context, entity any, storeIfNot .
 	match, err := d.matcher(ctx, entity, exists)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to match Value at IsDuplicate; %s", err.Error())
+	}
+
+	if !match && (len(storeIfNot) < 2 || storeIfNot[1] == 1) {
+		_, _, err = d.store(ctx, dedupHash, entity, storeIfNot[0])
+		if err != nil {
+			d.logger.With("error", err).Error("failed to update dedupHash at IsDuplicate; %s", err.Error())
+			return match, err
+		}
 	}
 
 	return match, nil
