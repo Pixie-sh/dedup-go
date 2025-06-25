@@ -1,6 +1,7 @@
 package dedup
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -153,28 +154,53 @@ func (d *Deduper) IsValueDuplicate(ctx context.Context, entity any, strategy Has
 		return false, errors.Wrap(err, "storage error; %s", err.Error(), DedupStorageErrorCode)
 	}
 
-	if IsEmpty(existing) && len(storeIfNot) > 0 {
-		_, _, err = d.store(ctx, dedupHash, entity, strategy, storeIfNot[0])
-		if err != nil {
-			d.logger.With("error", err).Error("failed to store dedupHash at IsDuplicate; %s", err.Error())
+	if IsEmpty(existing) {
+		if len(storeIfNot) > 0 {
+			_, _, err = d.store(ctx, dedupHash, entity, strategy, storeIfNot[0])
+			if err != nil {
+				d.logger.With("error", err).Error("failed to store dedupHash at IsDuplicate; %s", err.Error())
+			}
 		}
 		return false, nil
 	}
 
-	match, err := d.matcher(ctx, entity, existing)
+	// Serialize the input entity
+	serStr, err := d.serializer(ctx, entity)
 	if err != nil {
-		return false, errors.Wrap(err, "failed to match Value at IsDuplicate; %s", err.Error())
+		return false, errors.Wrap(err, "failed to serialize entity", DedupStorageErrorCode)
+	}
+	ser := []byte(serStr)
+
+	// Apply the same hashing rules as in store method
+	if strategy.ValueHashMode != NeverHash && (strategy.ValueHashMode == AlwaysHash || len(ser) > strategy.ValThreshold) {
+		h := d.hasher()
+		h.Write(ser)
+		ser = []byte(hex.EncodeToString(h.Sum(nil)))
+
+		// Direct comparison of hashed values
+		return bytes.Equal(ser, existing), nil
 	}
 
-	if !match && (len(storeIfNot) < 2 || storeIfNot[1] == 1) {
-		_, _, err = d.store(ctx, dedupHash, entity, strategy, storeIfNot[0])
+	// Use matcher function for comparison if available
+	if d.matcher != nil {
+		match, err := d.matcher(ctx, entity, string(existing))
 		if err != nil {
-			d.logger.With("error", err).Error("failed to update dedupHash at IsDuplicate; %s", err.Error())
-			return match, err
+			return false, errors.Wrap(err, "failed to match Value at IsDuplicate; %s", err.Error())
 		}
+
+		if !match && len(storeIfNot) > 0 && (len(storeIfNot) < 2 || storeIfNot[1] == 1) {
+			_, _, err = d.store(ctx, dedupHash, entity, strategy, storeIfNot[0])
+			if err != nil {
+				d.logger.With("error", err).Error("failed to update dedupHash at IsDuplicate; %s", err.Error())
+				return match, err
+			}
+		}
+
+		return match, nil
 	}
 
-	return match, nil
+	// Direct comparison of serialized values
+	return bytes.Equal(ser, existing), nil
 }
 
 func (d *Deduper) Store(ctx context.Context, entity any, strategy HashStrategy, expiration time.Duration) ([]byte, []byte, error) {
@@ -193,7 +219,9 @@ func (d *Deduper) store(ctx context.Context, dedupHash []byte, entity any, strat
 	}
 	ser := []byte(serStr)
 
-	if strategy.ValueHashMode != NeverHash && (strategy.ValueHashMode == AlwaysHash || len(ser) > strategy.ValThreshold) {
+	// Don't hash the serialized entity if we have a matcher function
+	// This ensures the matcher can properly compare the stored entity with input entities
+	if d.matcher == nil && strategy.ValueHashMode != NeverHash && (strategy.ValueHashMode == AlwaysHash || len(ser) > strategy.ValThreshold) {
 		h := d.hasher()
 		h.Write(ser)
 		ser = []byte(hex.EncodeToString(h.Sum(nil)))

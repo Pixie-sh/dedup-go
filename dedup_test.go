@@ -35,7 +35,7 @@ func TestRedisStorage(t *testing.T) {
 		mr.FlushAll()
 
 		// Key doesn't exist initially
-		exists, err := storage.Exists(ctx, "test-key")
+		exists, err := storage.Exists(ctx, []byte("test-key"))
 		assert.NoError(t, err)
 		assert.False(t, exists)
 
@@ -44,7 +44,7 @@ func TestRedisStorage(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Now it should exist
-		exists, err = storage.Exists(ctx, "test-key")
+		exists, err = storage.Exists(ctx, []byte("test-key"))
 		assert.NoError(t, err)
 		assert.True(t, exists)
 	})
@@ -54,7 +54,7 @@ func TestRedisStorage(t *testing.T) {
 		mr.FlushAll()
 
 		// Key doesn't exist initially
-		val, err := storage.Get(ctx, "test-key")
+		val, err := storage.Get(ctx, []byte("test-key"))
 		assert.NoError(t, err)
 		assert.Nil(t, val)
 
@@ -63,9 +63,9 @@ func TestRedisStorage(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Now it should return the value
-		val, err = storage.Get(ctx, "test-key")
+		val, err = storage.Get(ctx, []byte("test-key"))
 		assert.NoError(t, err)
-		assert.Equal(t, "value", val)
+		assert.Equal(t, []byte("value"), val)
 	})
 
 	t.Run("SetEX", func(t *testing.T) {
@@ -73,11 +73,11 @@ func TestRedisStorage(t *testing.T) {
 		mr.FlushAll()
 
 		// Set a key with expiration
-		err := storage.SetEX(ctx, "test-key", "value", 1*time.Second)
+		err := storage.SetEX(ctx, []byte("test-key"), []byte("value"), 1*time.Second)
 		assert.NoError(t, err)
 
 		// Verify it exists
-		exists, err := storage.Exists(ctx, "test-key")
+		exists, err := storage.Exists(ctx, []byte("test-key"))
 		assert.NoError(t, err)
 		assert.True(t, exists)
 
@@ -90,7 +90,7 @@ func TestRedisStorage(t *testing.T) {
 		mr.FastForward(2 * time.Second)
 
 		// Key should be expired now
-		exists, err = storage.Exists(ctx, "test-key")
+		exists, err = storage.Exists(ctx, []byte("test-key"))
 		assert.NoError(t, err)
 		assert.False(t, exists)
 	})
@@ -100,11 +100,11 @@ func TestRedisStorage(t *testing.T) {
 		mr.FlushAll()
 
 		// Set a key with expiration
-		err := storage.SetEX(ctx, "test-key", "value", 10*time.Second)
+		err := storage.SetEX(ctx, []byte("test-key"), []byte("value"), 10*time.Second)
 		assert.NoError(t, err)
 
 		// Check TTL
-		ttl, err := storage.TTL(ctx, "test-key")
+		ttl, err := storage.TTL(ctx, []byte("test-key"))
 		assert.NoError(t, err)
 		assert.True(t, ttl > 0 && ttl <= 10*time.Second)
 
@@ -112,7 +112,7 @@ func TestRedisStorage(t *testing.T) {
 		mr.FastForward(5 * time.Second)
 
 		// Check TTL again
-		ttl, err = storage.TTL(ctx, "test-key")
+		ttl, err = storage.TTL(ctx, []byte("test-key"))
 		assert.NoError(t, err)
 		assert.True(t, ttl > 0 && ttl <= 5*time.Second)
 
@@ -120,12 +120,12 @@ func TestRedisStorage(t *testing.T) {
 		err = client.Set(ctx, "persistent-key", "value", 0).Err()
 		assert.NoError(t, err)
 
-		ttl, err = storage.TTL(ctx, "persistent-key")
+		ttl, err = storage.TTL(ctx, []byte("persistent-key"))
 		assert.NoError(t, err)
 		assert.Equal(t, time.Duration(-1), ttl)
 
 		// Non-existent key
-		ttl, err = storage.TTL(ctx, "non-existent-key")
+		ttl, err = storage.TTL(ctx, []byte("non-existent-key"))
 		assert.NoError(t, err)
 		assert.Equal(t, time.Duration(-2), ttl)
 	})
@@ -187,25 +187,25 @@ func (m *MockLogger) Error(format string, args ...interface{}) {
 
 // MockStorage is a mock implementation of the Storage interface for testing
 type MockStorage struct {
-	existsFunc func(ctx context.Context, key string) (bool, error)
-	getFunc    func(ctx context.Context, key string) (any, error)
-	setExFunc  func(ctx context.Context, key string, value string, expiration time.Duration) error
-	ttlFunc    func(ctx context.Context, key string) (time.Duration, error)
+	existsFunc func(ctx context.Context, key []byte) (bool, error)
+	getFunc    func(ctx context.Context, key []byte) ([]byte, error)
+	setExFunc  func(ctx context.Context, key []byte, value []byte, expiration ...time.Duration) error
+	ttlFunc    func(ctx context.Context, key []byte) (time.Duration, error)
 }
 
-func (m *MockStorage) Exists(ctx context.Context, key string) (bool, error) {
+func (m *MockStorage) Exists(ctx context.Context, key []byte) (bool, error) {
 	return m.existsFunc(ctx, key)
 }
 
-func (m *MockStorage) Get(ctx context.Context, key string) (any, error) {
+func (m *MockStorage) Get(ctx context.Context, key []byte) ([]byte, error) {
 	return m.getFunc(ctx, key)
 }
 
-func (m *MockStorage) SetEX(ctx context.Context, key string, value string, expiration time.Duration) error {
-	return m.setExFunc(ctx, key, value, expiration)
+func (m *MockStorage) SetEX(ctx context.Context, key []byte, value []byte, expiration ...time.Duration) error {
+	return m.setExFunc(ctx, key, value, expiration...)
 }
 
-func (m *MockStorage) TTL(ctx context.Context, key string) (time.Duration, error) {
+func (m *MockStorage) TTL(ctx context.Context, key []byte) (time.Duration, error) {
 	return m.ttlFunc(ctx, key)
 }
 
@@ -262,16 +262,16 @@ func TestDeduperComprehensive(t *testing.T) {
 
 	t.Run("NewDeduper with default prefix", func(t *testing.T) {
 		mockStorage := &MockStorage{
-			existsFunc: func(ctx context.Context, key string) (bool, error) {
+			existsFunc: func(ctx context.Context, key []byte) (bool, error) {
 				return false, nil
 			},
-			getFunc: func(ctx context.Context, key string) (any, error) {
+			getFunc: func(ctx context.Context, key []byte) ([]byte, error) {
 				return nil, nil
 			},
-			setExFunc: func(ctx context.Context, key string, value string, expiration time.Duration) error {
+			setExFunc: func(ctx context.Context, key []byte, value []byte, expiration ...time.Duration) error {
 				return nil
 			},
-			ttlFunc: func(ctx context.Context, key string) (time.Duration, error) {
+			ttlFunc: func(ctx context.Context, key []byte) (time.Duration, error) {
 				return 0, nil
 			},
 		}
@@ -281,32 +281,32 @@ func TestDeduperComprehensive(t *testing.T) {
 
 		// Test that the default prefix is applied correctly
 		entity := TestEntity{ID: "123", Name: "Test"}
-		hash, err := deduper.Hash(ctx, entity)
+		hash, err := deduper.Hash(ctx, entity, DefaultHashStrategy(), false)
 		assert.NoError(t, err)
 
-		mockStorage.existsFunc = func(ctx context.Context, key string) (bool, error) {
+		mockStorage.existsFunc = func(ctx context.Context, key []byte) (bool, error) {
 			// Check that the key has the expected prefix
 			assert.True(t, len(key) > len(hash))
-			assert.Contains(t, key, "dedup:dedup.TestEntity:")
+			assert.Contains(t, string(key), "dedup:dedup.TestEntity:")
 			return false, nil
 		}
 
-		_, err = deduper.IsDuplicate(ctx, entity)
+		_, err = deduper.IsDuplicate(ctx, entity, DefaultHashStrategy())
 		assert.NoError(t, err)
 	})
 
 	t.Run("NewDeduper with custom prefix", func(t *testing.T) {
 		mockStorage := &MockStorage{
-			existsFunc: func(ctx context.Context, key string) (bool, error) {
+			existsFunc: func(ctx context.Context, key []byte) (bool, error) {
 				return false, nil
 			},
-			getFunc: func(ctx context.Context, key string) (any, error) {
+			getFunc: func(ctx context.Context, key []byte) ([]byte, error) {
 				return nil, nil
 			},
-			setExFunc: func(ctx context.Context, key string, value string, expiration time.Duration) error {
+			setExFunc: func(ctx context.Context, key []byte, value []byte, expiration ...time.Duration) error {
 				return nil
 			},
-			ttlFunc: func(ctx context.Context, key string) (time.Duration, error) {
+			ttlFunc: func(ctx context.Context, key []byte) (time.Duration, error) {
 				return 0, nil
 			},
 		}
@@ -316,32 +316,32 @@ func TestDeduperComprehensive(t *testing.T) {
 		assert.NotNil(t, deduper)
 
 		entity := TestEntity{ID: "123", Name: "Test"}
-		hash, err := deduper.Hash(ctx, entity)
+		hash, err := deduper.Hash(ctx, entity, DefaultHashStrategy(), false)
 		assert.NoError(t, err)
 
-		mockStorage.existsFunc = func(ctx context.Context, key string) (bool, error) {
+		mockStorage.existsFunc = func(ctx context.Context, key []byte) (bool, error) {
 			// Check that the key has the expected custom prefix
 			assert.True(t, len(key) > len(hash))
-			assert.True(t, key == customPrefix+hash)
+			assert.Contains(t, string(key), customPrefix)
 			return false, nil
 		}
 
-		_, err = deduper.IsDuplicate(ctx, entity)
+		_, err = deduper.IsDuplicate(ctx, entity, DefaultHashStrategy())
 		assert.NoError(t, err)
 	})
 
 	t.Run("Hash with nil entity", func(t *testing.T) {
 		mockStorage := &MockStorage{
-			existsFunc: func(ctx context.Context, key string) (bool, error) {
+			existsFunc: func(ctx context.Context, key []byte) (bool, error) {
 				return false, nil
 			},
-			getFunc: func(ctx context.Context, key string) (any, error) {
+			getFunc: func(ctx context.Context, key []byte) ([]byte, error) {
 				return nil, nil
 			},
-			setExFunc: func(ctx context.Context, key string, value string, expiration time.Duration) error {
+			setExFunc: func(ctx context.Context, key []byte, value []byte, expiration ...time.Duration) error {
 				return nil
 			},
-			ttlFunc: func(ctx context.Context, key string) (time.Duration, error) {
+			ttlFunc: func(ctx context.Context, key []byte) (time.Duration, error) {
 				return 0, nil
 			},
 		}
@@ -349,23 +349,23 @@ func TestDeduperComprehensive(t *testing.T) {
 		deduper := NewDeduper(hashHandler, mockStorage, log, func() hash.Hash { return sha1.New() }, matchHandler, serializer)
 		assert.NotNil(t, deduper)
 
-		_, err := deduper.Hash(ctx, nil)
+		_, err := deduper.Hash(ctx, nil, DefaultHashStrategy(), false)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "entity is nil")
 	})
 
 	t.Run("Hash with wrong type", func(t *testing.T) {
 		mockStorage := &MockStorage{
-			existsFunc: func(ctx context.Context, key string) (bool, error) {
+			existsFunc: func(ctx context.Context, key []byte) (bool, error) {
 				return false, nil
 			},
-			getFunc: func(ctx context.Context, key string) (any, error) {
+			getFunc: func(ctx context.Context, key []byte) ([]byte, error) {
 				return nil, nil
 			},
-			setExFunc: func(ctx context.Context, key string, value string, expiration time.Duration) error {
+			setExFunc: func(ctx context.Context, key []byte, value []byte, expiration ...time.Duration) error {
 				return nil
 			},
-			ttlFunc: func(ctx context.Context, key string) (time.Duration, error) {
+			ttlFunc: func(ctx context.Context, key []byte) (time.Duration, error) {
 				return 0, nil
 			},
 		}
@@ -373,7 +373,7 @@ func TestDeduperComprehensive(t *testing.T) {
 		deduper := NewDeduper(hashHandler, mockStorage, log, func() hash.Hash { return sha1.New() }, matchHandler, serializer)
 		assert.NotNil(t, deduper)
 
-		_, err := deduper.Hash(ctx, "not a TestEntity")
+		_, err := deduper.Hash(ctx, "not a TestEntity", DefaultHashStrategy(), false)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "entity is not of type")
 	})
@@ -381,18 +381,19 @@ func TestDeduperComprehensive(t *testing.T) {
 	t.Run("IsValueDuplicate with matching values", func(t *testing.T) {
 		entity := TestEntity{ID: "123", Name: "Test"}
 		serializedEntity, _ := serializer(ctx, entity)
+		serializedBytes := []byte(serializedEntity)
 
 		mockStorage := &MockStorage{
-			existsFunc: func(ctx context.Context, key string) (bool, error) {
+			existsFunc: func(ctx context.Context, key []byte) (bool, error) {
 				return true, nil
 			},
-			getFunc: func(ctx context.Context, key string) (any, error) {
-				return serializedEntity, nil
+			getFunc: func(ctx context.Context, key []byte) ([]byte, error) {
+				return serializedBytes, nil
 			},
-			setExFunc: func(ctx context.Context, key string, value string, expiration time.Duration) error {
+			setExFunc: func(ctx context.Context, key []byte, value []byte, expiration ...time.Duration) error {
 				return nil
 			},
-			ttlFunc: func(ctx context.Context, key string) (time.Duration, error) {
+			ttlFunc: func(ctx context.Context, key []byte) (time.Duration, error) {
 				return 10 * time.Second, nil
 			},
 		}
@@ -400,7 +401,7 @@ func TestDeduperComprehensive(t *testing.T) {
 		deduper := NewDeduper(hashHandler, mockStorage, log, func() hash.Hash { return sha1.New() }, matchHandler, serializer)
 		assert.NotNil(t, deduper)
 
-		isDuplicate, err := deduper.IsValueDuplicate(ctx, entity)
+		isDuplicate, err := deduper.IsValueDuplicate(ctx, entity, DefaultHashStrategy())
 		assert.NoError(t, err)
 		assert.True(t, isDuplicate)
 	})
@@ -409,18 +410,19 @@ func TestDeduperComprehensive(t *testing.T) {
 		entity := TestEntity{ID: "123", Name: "Test"}
 		differentEntity := TestEntity{ID: "456", Name: "Different"}
 		serializedDifferentEntity, _ := serializer(ctx, differentEntity)
+		serializedBytes := []byte(serializedDifferentEntity)
 
 		mockStorage := &MockStorage{
-			existsFunc: func(ctx context.Context, key string) (bool, error) {
+			existsFunc: func(ctx context.Context, key []byte) (bool, error) {
 				return true, nil
 			},
-			getFunc: func(ctx context.Context, key string) (any, error) {
-				return serializedDifferentEntity, nil
+			getFunc: func(ctx context.Context, key []byte) ([]byte, error) {
+				return serializedBytes, nil
 			},
-			setExFunc: func(ctx context.Context, key string, value string, expiration time.Duration) error {
+			setExFunc: func(ctx context.Context, key []byte, value []byte, expiration ...time.Duration) error {
 				return nil
 			},
-			ttlFunc: func(ctx context.Context, key string) (time.Duration, error) {
+			ttlFunc: func(ctx context.Context, key []byte) (time.Duration, error) {
 				return 10 * time.Second, nil
 			},
 		}
@@ -428,7 +430,7 @@ func TestDeduperComprehensive(t *testing.T) {
 		deduper := NewDeduper(hashHandler, mockStorage, log, func() hash.Hash { return sha1.New() }, matchHandler, serializer)
 		assert.NotNil(t, deduper)
 
-		isDuplicate, err := deduper.IsValueDuplicate(ctx, entity)
+		isDuplicate, err := deduper.IsValueDuplicate(ctx, entity, DefaultHashStrategy())
 		assert.NoError(t, err)
 		assert.False(t, isDuplicate)
 	})
@@ -436,16 +438,16 @@ func TestDeduperComprehensive(t *testing.T) {
 	t.Run("IsDuplicate with error from storage", func(t *testing.T) {
 		storageError := assert.AnError
 		mockStorage := &MockStorage{
-			existsFunc: func(ctx context.Context, key string) (bool, error) {
+			existsFunc: func(ctx context.Context, key []byte) (bool, error) {
 				return false, storageError
 			},
-			getFunc: func(ctx context.Context, key string) (any, error) {
+			getFunc: func(ctx context.Context, key []byte) ([]byte, error) {
 				return nil, nil
 			},
-			setExFunc: func(ctx context.Context, key string, value string, expiration time.Duration) error {
+			setExFunc: func(ctx context.Context, key []byte, value []byte, expiration ...time.Duration) error {
 				return nil
 			},
-			ttlFunc: func(ctx context.Context, key string) (time.Duration, error) {
+			ttlFunc: func(ctx context.Context, key []byte) (time.Duration, error) {
 				return 0, nil
 			},
 		}
@@ -454,7 +456,7 @@ func TestDeduperComprehensive(t *testing.T) {
 		assert.NotNil(t, deduper)
 
 		entity := TestEntity{ID: "123", Name: "Test"}
-		_, err := deduper.IsDuplicate(ctx, entity)
+		_, err := deduper.IsDuplicate(ctx, entity, DefaultHashStrategy())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "storage error")
 	})
@@ -462,16 +464,16 @@ func TestDeduperComprehensive(t *testing.T) {
 	t.Run("IsDuplicate with storeIfNot and storage error", func(t *testing.T) {
 		mockLogger := NewMockLogger()
 		mockStorage := &MockStorage{
-			existsFunc: func(ctx context.Context, key string) (bool, error) {
+			existsFunc: func(ctx context.Context, key []byte) (bool, error) {
 				return false, nil
 			},
-			getFunc: func(ctx context.Context, key string) (any, error) {
+			getFunc: func(ctx context.Context, key []byte) ([]byte, error) {
 				return nil, nil
 			},
-			setExFunc: func(ctx context.Context, key string, value string, expiration time.Duration) error {
+			setExFunc: func(ctx context.Context, key []byte, value []byte, expiration ...time.Duration) error {
 				return assert.AnError
 			},
-			ttlFunc: func(ctx context.Context, key string) (time.Duration, error) {
+			ttlFunc: func(ctx context.Context, key []byte) (time.Duration, error) {
 				return 0, nil
 			},
 		}
@@ -480,7 +482,7 @@ func TestDeduperComprehensive(t *testing.T) {
 		assert.NotNil(t, deduper)
 
 		entity := TestEntity{ID: "123", Name: "Test"}
-		isDuplicate, err := deduper.IsDuplicate(ctx, entity, 10*time.Second)
+		isDuplicate, err := deduper.IsDuplicate(ctx, entity, DefaultHashStrategy(), 10*time.Second)
 		assert.NoError(t, err)
 		assert.False(t, isDuplicate)
 	})
@@ -488,16 +490,16 @@ func TestDeduperComprehensive(t *testing.T) {
 	t.Run("Store with error from storage", func(t *testing.T) {
 		storageError := assert.AnError
 		mockStorage := &MockStorage{
-			existsFunc: func(ctx context.Context, key string) (bool, error) {
+			existsFunc: func(ctx context.Context, key []byte) (bool, error) {
 				return false, nil
 			},
-			getFunc: func(ctx context.Context, key string) (any, error) {
+			getFunc: func(ctx context.Context, key []byte) ([]byte, error) {
 				return nil, nil
 			},
-			setExFunc: func(ctx context.Context, key string, value string, expiration time.Duration) error {
+			setExFunc: func(ctx context.Context, key []byte, value []byte, expiration ...time.Duration) error {
 				return storageError
 			},
-			ttlFunc: func(ctx context.Context, key string) (time.Duration, error) {
+			ttlFunc: func(ctx context.Context, key []byte) (time.Duration, error) {
 				return 0, nil
 			},
 		}
@@ -506,23 +508,23 @@ func TestDeduperComprehensive(t *testing.T) {
 		assert.NotNil(t, deduper)
 
 		entity := TestEntity{ID: "123", Name: "Test"}
-		_, _, err := deduper.Store(ctx, entity, 10*time.Second)
+		_, _, err := deduper.Store(ctx, entity, DefaultHashStrategy(), 10*time.Second)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to store")
 	})
 
 	t.Run("TTL with different TTL responses", func(t *testing.T) {
 		mockStorage := &MockStorage{
-			existsFunc: func(ctx context.Context, key string) (bool, error) {
+			existsFunc: func(ctx context.Context, key []byte) (bool, error) {
 				return false, nil
 			},
-			getFunc: func(ctx context.Context, key string) (any, error) {
+			getFunc: func(ctx context.Context, key []byte) ([]byte, error) {
 				return nil, nil
 			},
-			setExFunc: func(ctx context.Context, key string, value string, expiration time.Duration) error {
+			setExFunc: func(ctx context.Context, key []byte, value []byte, expiration ...time.Duration) error {
 				return nil
 			},
-			ttlFunc: func(ctx context.Context, key string) (time.Duration, error) {
+			ttlFunc: func(ctx context.Context, key []byte) (time.Duration, error) {
 				return 0, nil
 			},
 		}
@@ -531,34 +533,34 @@ func TestDeduperComprehensive(t *testing.T) {
 		assert.NotNil(t, deduper)
 
 		// Test storage error
-		mockStorage.ttlFunc = func(ctx context.Context, key string) (time.Duration, error) {
+		mockStorage.ttlFunc = func(ctx context.Context, key []byte) (time.Duration, error) {
 			return 0, assert.AnError
 		}
-		_, err := deduper.TTL(ctx, "hash")
+		_, err := deduper.TTL(ctx, []byte("hash"))
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "storage error")
 
 		// Test key does not exist (TTL = 0)
-		mockStorage.ttlFunc = func(ctx context.Context, key string) (time.Duration, error) {
+		mockStorage.ttlFunc = func(ctx context.Context, key []byte) (time.Duration, error) {
 			return 0, nil
 		}
-		_, err = deduper.TTL(ctx, "hash")
+		_, err = deduper.TTL(ctx, []byte("hash"))
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "does not exist")
 
 		// Test key has no expiration (TTL = -1)
-		mockStorage.ttlFunc = func(ctx context.Context, key string) (time.Duration, error) {
+		mockStorage.ttlFunc = func(ctx context.Context, key []byte) (time.Duration, error) {
 			return -1, nil
 		}
-		_, err = deduper.TTL(ctx, "hash")
+		_, err = deduper.TTL(ctx, []byte("hash"))
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "has no expiration")
 
 		// Test key with valid TTL
-		mockStorage.ttlFunc = func(ctx context.Context, key string) (time.Duration, error) {
+		mockStorage.ttlFunc = func(ctx context.Context, key []byte) (time.Duration, error) {
 			return 10 * time.Second, nil
 		}
-		ttl, err := deduper.TTL(ctx, "hash")
+		ttl, err := deduper.TTL(ctx, []byte("hash"))
 		assert.NoError(t, err)
 		assert.Equal(t, 10*time.Second, ttl)
 	})
@@ -633,17 +635,17 @@ func TestDeduperWithRedis(t *testing.T) {
 		entity := TestEntity{ID: "123", Name: "Test"}
 
 		// 1. Check if entity is a duplicate (should not be)
-		isDuplicate, err := deduper.IsDuplicate(ctx, entity)
+		isDuplicate, err := deduper.IsDuplicate(ctx, entity, DefaultHashStrategy())
 		assert.NoError(t, err)
 		assert.False(t, isDuplicate)
 
 		// 2. Store hash with expiration
-		hash, _, err := deduper.Store(ctx, entity, 10*time.Second)
+		hash, _, err := deduper.Store(ctx, entity, DefaultHashStrategy(), 10*time.Second)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, hash)
 
 		// 3. Check if entity is now a duplicate (should be)
-		isDuplicate, err = deduper.IsDuplicate(ctx, entity)
+		isDuplicate, err = deduper.IsDuplicate(ctx, entity, DefaultHashStrategy())
 		assert.NoError(t, err)
 		assert.True(t, isDuplicate)
 
@@ -664,7 +666,7 @@ func TestDeduperWithRedis(t *testing.T) {
 		mr.FastForward(6 * time.Second)
 
 		// 8. Check if entity is still a duplicate (should not be after expiration)
-		isDuplicate, err = deduper.IsDuplicate(ctx, entity)
+		isDuplicate, err = deduper.IsDuplicate(ctx, entity, DefaultHashStrategy())
 		assert.NoError(t, err)
 		assert.False(t, isDuplicate)
 
@@ -684,22 +686,22 @@ func TestDeduperWithRedis(t *testing.T) {
 		entity := TestEntity{ID: "123", Name: "Test"}
 
 		// 1. Check if entity value is a duplicate (should not be)
-		isDuplicate, err := deduper.IsValueDuplicate(ctx, entity)
+		isDuplicate, err := deduper.IsValueDuplicate(ctx, entity, DefaultHashStrategy())
 		assert.NoError(t, err)
 		assert.False(t, isDuplicate)
 
 		// 2. Store entity with expiration
-		_, _, err = deduper.Store(ctx, entity, 10*time.Second)
+		_, _, err = deduper.Store(ctx, entity, DefaultHashStrategy(), 10*time.Second)
 		assert.NoError(t, err)
 
 		// 3. Check if entity value is now a duplicate (should be)
-		isDuplicate, err = deduper.IsValueDuplicate(ctx, entity)
+		isDuplicate, err = deduper.IsValueDuplicate(ctx, entity, DefaultHashStrategy())
 		assert.NoError(t, err)
 		assert.True(t, isDuplicate)
 
 		// 4. Check with different entity that has same hash
 		differentEntity := TestEntity{ID: "123", Name: "Test"} // Same properties
-		isDuplicate, err = deduper.IsValueDuplicate(ctx, differentEntity)
+		isDuplicate, err = deduper.IsValueDuplicate(ctx, differentEntity, DefaultHashStrategy())
 		assert.NoError(t, err)
 		assert.True(t, isDuplicate)
 	})
@@ -714,12 +716,12 @@ func TestDeduperWithRedis(t *testing.T) {
 		entity := TestEntity{ID: "123", Name: "Test"}
 
 		// Check and store if not a duplicate
-		isDuplicate, err := deduper.IsDuplicate(ctx, entity, 10*time.Second)
+		isDuplicate, err := deduper.IsDuplicate(ctx, entity, DefaultHashStrategy(), 10*time.Second)
 		assert.NoError(t, err)
 		assert.False(t, isDuplicate)
 
 		// Now it should be a duplicate
-		isDuplicate, err = deduper.IsDuplicate(ctx, entity)
+		isDuplicate, err = deduper.IsDuplicate(ctx, entity, DefaultHashStrategy())
 		assert.NoError(t, err)
 		assert.True(t, isDuplicate)
 
@@ -727,7 +729,7 @@ func TestDeduperWithRedis(t *testing.T) {
 		mr.FastForward(11 * time.Second)
 
 		// Should not be a duplicate anymore
-		isDuplicate, err = deduper.IsDuplicate(ctx, entity)
+		isDuplicate, err = deduper.IsDuplicate(ctx, entity, DefaultHashStrategy())
 		assert.NoError(t, err)
 		assert.False(t, isDuplicate)
 	})
@@ -743,18 +745,18 @@ func TestDeduperWithRedis(t *testing.T) {
 		entity2 := TestEntity{ID: "123", Name: "Test"} // Same properties, different instance
 
 		// Store the first entity
-		hash1, _, err := deduper.Store(ctx, entity1, 10*time.Second)
+		hash1, _, err := deduper.Store(ctx, entity1, DefaultHashStrategy(), 10*time.Second)
 		assert.NoError(t, err)
 
 		// Generate hash for second entity
-		hash2, err := deduper.Hash(ctx, entity2)
+		hash2, err := deduper.Hash(ctx, entity2, DefaultHashStrategy(), false)
 		assert.NoError(t, err)
 
 		// They should have the same hash
 		assert.Equal(t, hash1, hash2)
 
 		// Second entity should be considered a duplicate
-		isDuplicate, err := deduper.IsDuplicate(ctx, entity2)
+		isDuplicate, err := deduper.IsDuplicate(ctx, entity2, DefaultHashStrategy())
 		assert.NoError(t, err)
 		assert.True(t, isDuplicate)
 	})
@@ -866,32 +868,32 @@ func TestDeduperWithRedis(t *testing.T) {
 		}
 
 		campaign := CampaignAction{
-			CampaignID: "user1", // Intentionally using same value
+			CampaignID: "user1",   // Intentionally using same value
 			ActionID:   "action1", // Intentionally using same value
 		}
 
 		// Store action hash
-		actionHash, _, err := actionDeduper.Store(ctx, action, 10*time.Second)
+		actionHash, _, err := actionDeduper.Store(ctx, action, DefaultHashStrategy(), 10*time.Second)
 		assert.NoError(t, err)
 
 		// Generate campaign hash
-		campaignHash, err := campaignDeduper.Hash(ctx, campaign)
+		campaignHash, err := campaignDeduper.Hash(ctx, campaign, DefaultHashStrategy(), false)
 		assert.NoError(t, err)
 
 		// Verify same hash values but different keys in Redis due to different prefixes
 		assert.Equal(t, actionHash, campaignHash, "Hashes should be the same")
 
 		// Campaign should not be considered a duplicate because it uses a different prefix
-		isDuplicate, err := campaignDeduper.IsDuplicate(ctx, campaign)
+		isDuplicate, err := campaignDeduper.IsDuplicate(ctx, campaign, DefaultHashStrategy())
 		assert.NoError(t, err)
 		assert.False(t, isDuplicate, "Campaign should not be a duplicate despite having same hash")
 
 		// Store campaign hash
-		_, _, err = campaignDeduper.Store(ctx, campaign, 10*time.Second)
+		_, _, err = campaignDeduper.Store(ctx, campaign, DefaultHashStrategy(), 10*time.Second)
 		assert.NoError(t, err)
 
 		// Now campaign should be a duplicate
-		isDuplicate, err = campaignDeduper.IsDuplicate(ctx, campaign)
+		isDuplicate, err = campaignDeduper.IsDuplicate(ctx, campaign, DefaultHashStrategy())
 		assert.NoError(t, err)
 		assert.True(t, isDuplicate, "Campaign should now be a duplicate")
 	})
