@@ -8,7 +8,6 @@ require (
 	github.com/pixie-sh/logger-go v0.4.2
 	github.com/redis/go-redis/v9 v9.8.0
 	github.com/stretchr/testify v1.10.0
-	go.worten.net/digital/packages/marketplace-libs v0.0.23
 )
 
 require (

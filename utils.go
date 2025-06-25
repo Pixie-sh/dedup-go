@@ -14,3 +14,8 @@ func nameOf[T any]() string {
 
 	return typ.String()
 }
+
+// IsEmpty checks if the given struct of type T has zero values for all its fields.
+func IsEmpty[T any](i T) bool {
+	return reflect.DeepEqual(i, reflect.Zero(reflect.TypeOf(i)).Interface())
+}
