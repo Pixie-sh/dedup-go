@@ -68,7 +68,7 @@ func NewDeduper[T any](
 	customPrefix ...string,
 ) *Deduper {
 	prefix := []byte(fmt.Sprintf("dedup:%s:", nameOf[T]()))
-	if len(customPrefix) > 0 && customPrefix[0] != "" {
+	if len(customPrefix) > 0 {
 		prefix = []byte(customPrefix[0])
 	}
 
