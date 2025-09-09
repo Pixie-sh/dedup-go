@@ -172,7 +172,7 @@ func (d *Deduper) IsValueDuplicate(ctx context.Context, entity any, strategy Has
 	ser := []byte(serStr)
 
 	// Apply the same hashing rules as in store method
-	if strategy.ValueHashMode != NeverHash && (strategy.ValueHashMode == AlwaysHash || len(ser) > strategy.ValThreshold) {
+	if d.matcher == nil && strategy.ValueHashMode != NeverHash && (strategy.ValueHashMode == AlwaysHash || len(ser) > strategy.ValThreshold) {
 		h := d.hasher()
 		h.Write(ser)
 		ser = []byte(hex.EncodeToString(h.Sum(nil)))
