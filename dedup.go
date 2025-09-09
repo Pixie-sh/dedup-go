@@ -178,7 +178,17 @@ func (d *Deduper) IsValueDuplicate(ctx context.Context, entity any, strategy Has
 		ser = []byte(hex.EncodeToString(h.Sum(nil)))
 
 		// Direct comparison of hashed values
-		return bytes.Equal(ser, existing), nil
+		isDuplicate := bytes.Equal(ser, existing)
+
+		// Store if not duplicate and storeIfNot is provided
+		if !isDuplicate && len(storeIfNot) > 0 {
+			_, _, err = d.store(ctx, dedupHash, entity, strategy, storeIfNot[0])
+			if err != nil {
+				d.logger.With("error", err).Error("failed to store dedupHash at IsValueDuplicate; %s", err.Error())
+			}
+		}
+
+		return isDuplicate, nil
 	}
 
 	// Use matcher function for comparison if available
@@ -200,7 +210,17 @@ func (d *Deduper) IsValueDuplicate(ctx context.Context, entity any, strategy Has
 	}
 
 	// Direct comparison of serialized values
-	return bytes.Equal(ser, existing), nil
+	isDuplicate := bytes.Equal(ser, existing)
+
+	// Store if not duplicate and storeIfNot is provided
+	if !isDuplicate && len(storeIfNot) > 0 {
+		_, _, err = d.store(ctx, dedupHash, entity, strategy, storeIfNot[0])
+		if err != nil {
+			d.logger.With("error", err).Error("failed to store dedupHash at IsValueDuplicate; %s", err.Error())
+		}
+	}
+
+	return isDuplicate, nil
 }
 
 func (d *Deduper) Store(ctx context.Context, entity any, strategy HashStrategy, expiration time.Duration) ([]byte, []byte, error) {
